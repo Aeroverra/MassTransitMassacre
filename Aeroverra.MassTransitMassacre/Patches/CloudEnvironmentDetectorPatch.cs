@@ -11,27 +11,27 @@ namespace Aeroverra.MassTransitMassacre.Patches;
 /// </summary>
 internal static class CloudEnvironmentDetectorPatch
 {
-    public static void Install(Harmony harmony)
+    public static bool Install(Harmony harmony)
     {
         Type? trackerType = AccessTools.TypeByName("MassTransit.UsageTracking.UsageTracker");
         if (trackerType is null)
         {
             MassTransitMassacre.RecordDiagnostic("CloudEnvironmentDetectorPatch: outer UsageTracker type not found", LogLevel.Warning);
-            return;
+            return false;
         }
 
         Type? detectorType = AccessTools.Inner(trackerType, "CloudEnvironmentDetector");
         if (detectorType is null)
         {
             MassTransitMassacre.RecordDiagnostic("CloudEnvironmentDetectorPatch: nested CloudEnvironmentDetector type not found", LogLevel.Warning);
-            return;
+            return false;
         }
 
         MethodInfo? detectMethod = AccessTools.Method(detectorType, "Detect");
         if (detectMethod is null)
         {
             MassTransitMassacre.RecordDiagnostic("CloudEnvironmentDetectorPatch: Detect method not found", LogLevel.Warning);
-            return;
+            return false;
         }
 
         MethodInfo prefix = typeof(CloudEnvironmentDetectorPatch).GetMethod(
@@ -40,6 +40,7 @@ internal static class CloudEnvironmentDetectorPatch
 
         harmony.Patch(detectMethod, prefix: new HarmonyMethod(prefix));
         MassTransitMassacre.RecordDiagnostic("CloudEnvironmentDetectorPatch: installed");
+        return true;
     }
 
     private static bool DetectPrefix(ref object __result, MethodInfo __originalMethod)

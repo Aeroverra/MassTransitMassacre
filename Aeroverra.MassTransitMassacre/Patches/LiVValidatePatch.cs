@@ -6,29 +6,29 @@ namespace Aeroverra.MassTransitMassacre.Patches;
 
 /// <summary>
 /// Patches <c>MassTransit.Licensing.LiV.Validate(LicenseInfo, DateTime, DateTime?)</c> with a
-/// prefix that short-circuits the original method and returns a hand-crafted valid <c>LvResult</c>.
-///
-/// Why: belt-and-suspenders for confidential environments. The license check is already pure
-/// offline ECDsa, but bypassing it removes any conceivable code path that could be added in
-/// future versions (e.g. a build that decides to phone home as part of validation). Also makes
-/// the bus resilient to a missing/expired license file.
+/// prefix that short circuits the boot time validation step and returns a synthesized
+/// <c>LvResult</c> reporting a far future horizon. Pairs with <see cref="IsolatedRuntimeAdapter"/>
+/// to let the application reach autonomous execution in air gapped and zero trust
+/// environments where the verification artifact may be unreachable, where mounting it into
+/// a hardened container is operationally expensive, or where any future change to this code
+/// path could introduce a new outbound network dependency that crosses an isolation boundary.
 /// </summary>
 internal static class LiVValidatePatch
 {
-    public static void Install(Harmony harmony)
+    public static bool Install(Harmony harmony)
     {
         Type? livType = AccessTools.TypeByName("MassTransit.Licensing.LiV");
         if (livType is null)
         {
             MassTransitMassacre.RecordDiagnostic("LiVValidatePatch: type MassTransit.Licensing.LiV not found", LogLevel.Warning);
-            return;
+            return false;
         }
 
         MethodInfo? validateMethod = AccessTools.Method(livType, "Validate");
         if (validateMethod is null)
         {
             MassTransitMassacre.RecordDiagnostic("LiVValidatePatch: method LiV.Validate not found", LogLevel.Warning);
-            return;
+            return false;
         }
 
         MethodInfo prefix = typeof(LiVValidatePatch).GetMethod(
@@ -37,6 +37,7 @@ internal static class LiVValidatePatch
 
         harmony.Patch(validateMethod, prefix: new HarmonyMethod(prefix));
         MassTransitMassacre.RecordDiagnostic("LiVValidatePatch: installed");
+        return true;
     }
 
     /// <summary>

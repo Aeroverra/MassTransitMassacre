@@ -46,11 +46,28 @@ public class MassTransitMassacreTests
         string joined = string.Join("\n  - ", diagnostics);
 
         Assert.Contains(diagnostics, d => d.StartsWith("LiVValidatePatch: installed"));
-        Assert.Contains(diagnostics, d => d.StartsWith("LicenseReaderPatch: installed on Load"));
-        Assert.Contains(diagnostics, d => d.StartsWith("LicenseReaderPatch: installed on LoadFromFile"));
+        Assert.Contains(diagnostics, d => d.StartsWith("IsolatedRuntimeAdapter: installed on Load"));
+        Assert.Contains(diagnostics, d => d.StartsWith("IsolatedRuntimeAdapter: installed on LoadFromFile"));
         Assert.Contains(diagnostics, d => d.StartsWith("UsageTrackerReportPatch: installed"));
         Assert.Contains(diagnostics, d => d.StartsWith("UsageTrackerEnabledPatch: installed"));
         Assert.Contains(diagnostics, d => d.StartsWith("CloudEnvironmentDetectorPatch: installed"));
+    }
+
+    [Fact]
+    public void MassacreOptions_ThrowOnPatchFailure_DefaultsFalse()
+    {
+        MassacreOptions options = new();
+        Assert.False(options.ThrowOnPatchFailure);
+    }
+
+    [Fact]
+    public void MassacreInstallException_CarriesDiagnosticsSnapshot()
+    {
+        string[] sample = { "patch A: not found", "patch B: installed" };
+        MassacreInstallException ex = new("test message", sample);
+
+        Assert.Equal("test message", ex.Message);
+        Assert.Equal(sample, ex.Diagnostics);
     }
 
     [Fact]
@@ -196,10 +213,50 @@ public class MassTransitMassacreTests
         Assert.Contains(capture.Entries, e => e.Message.Contains("UsageTrackerEnabledPatch: installed"));
         Assert.Contains(capture.Entries, e => e.Message.Contains("LiVValidatePatch: installed"));
         Assert.Contains(capture.Entries, e => e.Message.Contains("CloudEnvironmentDetectorPatch: installed"));
-        Assert.Contains(capture.Entries, e => e.Message.Contains("LicenseReaderPatch: installed on Load"));
-        Assert.Contains(capture.Entries, e => e.Message.Contains("LicenseReaderPatch: installed on LoadFromFile"));
+        Assert.Contains(capture.Entries, e => e.Message.Contains("IsolatedRuntimeAdapter: installed on Load"));
+        Assert.Contains(capture.Entries, e => e.Message.Contains("IsolatedRuntimeAdapter: installed on LoadFromFile"));
 
         Assert.All(capture.Entries, e => Assert.Equal(LogLevel.Information, e.Level));
+    }
+
+    [Fact]
+    public async Task AddMassTransitMassacre_RegistersHostedServiceThatResolvesLoggerFromDI()
+    {
+        CapturingLogger capture = new();
+
+        ServiceCollection services = new();
+        services.AddLogging(b => b.AddProvider(new CapturingLoggerProvider(capture)));
+        services.AddMassTransitMassacre();
+
+        await using ServiceProvider provider = services.BuildServiceProvider();
+
+        IHostedService hostedService = provider
+            .GetServices<IHostedService>()
+            .Single(s => s.GetType().Name.Contains("MassacreDiagnostics"));
+
+        await hostedService.StartAsync(CancellationToken.None);
+
+        Assert.NotEmpty(capture.Entries);
+        Assert.Contains(capture.Entries, e => e.Message.Contains("LiVValidatePatch: installed"));
+        Assert.Contains(capture.Entries, e => e.Message.Contains("IsolatedRuntimeAdapter: installed on Load"));
+
+        await hostedService.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public void AddMassTransitMassacre_WhenEnabledFalse_DoesNotRegisterHostedService()
+    {
+        ServiceCollection services = new();
+        services.AddLogging();
+        services.AddMassTransitMassacre(opts => opts.Enabled = false);
+
+        using ServiceProvider provider = services.BuildServiceProvider();
+
+        bool anyMassacreHostedService = provider
+            .GetServices<IHostedService>()
+            .Any(s => s.GetType().Name.Contains("Massacre"));
+
+        Assert.False(anyMassacreHostedService);
     }
 
     public sealed record ProbeMessage(string Payload);
@@ -236,6 +293,22 @@ public class MassTransitMassacreTests
             ?? throw new InvalidOperationException(
                 $"Type {fullName} not found in any loaded assembly. " +
                 "Apply() must run before this test.");
+    }
+
+    private sealed class CapturingLoggerProvider : ILoggerProvider
+    {
+        private readonly CapturingLogger _logger;
+
+        public CapturingLoggerProvider(CapturingLogger logger)
+        {
+            _logger = logger;
+        }
+
+        public ILogger CreateLogger(string categoryName) => _logger;
+
+        public void Dispose()
+        {
+        }
     }
 
     private sealed class CapturingLogger : ILogger

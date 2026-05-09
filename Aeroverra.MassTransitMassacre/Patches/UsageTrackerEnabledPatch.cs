@@ -16,7 +16,7 @@ namespace Aeroverra.MassTransitMassacre.Patches;
 /// </summary>
 internal static class UsageTrackerEnabledPatch
 {
-    public static void Install(Harmony harmony)
+    public static bool Install(Harmony harmony)
     {
         Type? optionsType =
             AccessTools.TypeByName("MassTransit.UsageTelemetryOptions") ??
@@ -26,7 +26,7 @@ internal static class UsageTrackerEnabledPatch
         if (optionsType is null)
         {
             MassTransitMassacre.RecordDiagnostic("UsageTrackerEnabledPatch: UsageTelemetryOptions type not found in any expected namespace", LogLevel.Warning);
-            return;
+            return false;
         }
 
         PropertyInfo? enabledProperty = optionsType.GetProperty(
@@ -36,7 +36,7 @@ internal static class UsageTrackerEnabledPatch
         if (enabledProperty?.GetGetMethod() is not { } getter)
         {
             MassTransitMassacre.RecordDiagnostic($"UsageTrackerEnabledPatch: Enabled getter not found on {optionsType.FullName}", LogLevel.Warning);
-            return;
+            return false;
         }
 
         MethodInfo postfix = typeof(UsageTrackerEnabledPatch).GetMethod(
@@ -45,6 +45,7 @@ internal static class UsageTrackerEnabledPatch
 
         harmony.Patch(getter, postfix: new HarmonyMethod(postfix));
         MassTransitMassacre.RecordDiagnostic($"UsageTrackerEnabledPatch: installed on {optionsType.FullName}.Enabled getter");
+        return true;
     }
 
     private static void EnabledGetterPostfix(ref bool __result)
