@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Aeroverra.MassTransitMassacre/Aeroverra.MassTransitMassacre.csproj" />
+  <Project Path="Aeroverra.MassTransitMassacre.Tests/Aeroverra.MassTransitMassacre.Tests.csproj" />
+</Solution>

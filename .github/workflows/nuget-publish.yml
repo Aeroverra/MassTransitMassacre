@@ -1,0 +1,113 @@
+name: nuget-publish
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version_override:
+        description: 'Optional explicit version (leave blank to auto compute from VersionPrefix + run_number)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Build, test, pack, publish
+    runs-on: ubuntu-latest
+    environment: Production
+    permissions:
+      id-token: write   # required for NuGet trusted publishing OIDC
+      contents: write   # required to push the auto generated release tag
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: preview
+
+      - name: Resolve version
+        id: ver
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.version_override }}" ]; then
+            VALUE="${{ inputs.version_override }}"
+            echo "Using manual override: ${VALUE}"
+          else
+            CSPROJ="Aeroverra.MassTransitMassacre/Aeroverra.MassTransitMassacre.csproj"
+            PREFIX=$(grep -oP '(?<=<VersionPrefix>)[^<]+' "$CSPROJ" | head -1)
+            if [ -z "$PREFIX" ]; then
+              echo "::error::VersionPrefix not found in $CSPROJ" >&2
+              exit 1
+            fi
+            VALUE="${PREFIX}.${{ github.run_number }}"
+            echo "Auto computed version: ${VALUE} (prefix=${PREFIX}, run_number=${{ github.run_number }})"
+          fi
+          echo "value=${VALUE}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore
+        run: dotnet restore Aeroverra.MassTransitMassacre.slnx
+
+      - name: Build
+        run: >
+          dotnet build Aeroverra.MassTransitMassacre.slnx
+          -c Release
+          --no-restore
+          -p:Version=${{ steps.ver.outputs.value }}
+          -p:ContinuousIntegrationBuild=true
+
+      - name: Test
+        run: >
+          dotnet test Aeroverra.MassTransitMassacre.slnx
+          -c Release
+          --no-build
+          --logger "console;verbosity=normal"
+
+      - name: Pack
+        run: >
+          dotnet pack Aeroverra.MassTransitMassacre/Aeroverra.MassTransitMassacre.csproj
+          -c Release
+          --no-build
+          -o ./packages
+          -p:Version=${{ steps.ver.outputs.value }}
+          -p:ContinuousIntegrationBuild=true
+
+      - name: NuGet trusted publish login
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: Aeroverra
+
+      - name: Push to NuGet
+        run: >
+          dotnet nuget push "./packages/*.nupkg"
+          --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}"
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicate
+
+      - name: Tag the release
+        if: success()
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ steps.ver.outputs.value }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG (automated by nuget-publish workflow)"
+          git push origin "$TAG"
+
+      - name: Upload package artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-package-${{ steps.ver.outputs.value }}
+          path: ./packages/*.nupkg
+          if-no-files-found: warn

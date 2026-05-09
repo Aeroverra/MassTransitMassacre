@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net9.0;net8.0;netstandard2.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>Aeroverra.MassTransitMassacre</AssemblyName>
+    <RootNamespace>Aeroverra.MassTransitMassacre</RootNamespace>
+    <Description>Hardens MassTransit for air gapped and zero trust environments.</Description>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <Title>MassTransit Massacre</Title>
+    <Authors>Aeroverra</Authors>
+    <Copyright>Copyright (c) 2026 Aeroverra</Copyright>
+    <PackageProjectUrl>https://github.com/Aeroverra/MassTransitMassacre</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
+    <PackageTags>masstransit;privacy;telemetry;air-gapped;zero-trust;harmony;isolation</PackageTags>
+    <RepositoryUrl>https://github.com/Aeroverra/MassTransitMassacre</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <!-- Major.Minor tracks the MassTransit major.minor this build targets. Bump manually
+         when upgrading the MassTransit reference to a new major or minor (for example, when
+         MassTransit goes from 9.2.x to 9.3.x). The patch component is appended automatically
+         by the publish workflow using the GitHub Actions run number, so every push to main
+         gets a unique monotonic NuGet version without manual bookkeeping. -->
+    <VersionPrefix>9.2</VersionPrefix>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\README.md" Pack="True" PackagePath="\" />
+    <None Include="..\LICENSE.md" Pack="True" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Lib.Harmony" Version="2.4.2" />
+    <PackageReference Include="MassTransit" Version="9.2.0-develop.137">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+  </ItemGroup>
+
+</Project>
