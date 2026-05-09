@@ -11,20 +11,20 @@ namespace Aeroverra.MassTransitMassacre.Patches;
 /// </summary>
 internal static class UsageTrackerReportPatch
 {
-    public static void Install(Harmony harmony)
+    public static bool Install(Harmony harmony)
     {
         Type? trackerType = AccessTools.TypeByName("MassTransit.UsageTracking.UsageTracker");
         if (trackerType is null)
         {
             MassTransitMassacre.RecordDiagnostic("UsageTrackerReportPatch: type MassTransit.UsageTracking.UsageTracker not found", LogLevel.Warning);
-            return;
+            return false;
         }
 
         MethodInfo? reportMethod = AccessTools.Method(trackerType, "ReportUsageTelemetry");
         if (reportMethod is null)
         {
             MassTransitMassacre.RecordDiagnostic("UsageTrackerReportPatch: method ReportUsageTelemetry not found", LogLevel.Warning);
-            return;
+            return false;
         }
 
         MethodInfo prefix = typeof(UsageTrackerReportPatch).GetMethod(
@@ -33,6 +33,7 @@ internal static class UsageTrackerReportPatch
 
         harmony.Patch(reportMethod, prefix: new HarmonyMethod(prefix));
         MassTransitMassacre.RecordDiagnostic("UsageTrackerReportPatch: installed");
+        return true;
     }
 
     private static bool ReportUsageTelemetryPrefix(ref Task __result)

@@ -146,11 +146,36 @@ public static class MassTransitMassacre
 
             _harmony = new Harmony(HarmonyId);
 
-            UsageTrackerReportPatch.Install(_harmony);
-            UsageTrackerEnabledPatch.Install(_harmony);
-            LiVValidatePatch.Install(_harmony);
-            CloudEnvironmentDetectorPatch.Install(_harmony);
-            LicenseReaderPatch.Install(_harmony);
+            bool allInstalled = true;
+            allInstalled &= UsageTrackerReportPatch.Install(_harmony);
+            allInstalled &= UsageTrackerEnabledPatch.Install(_harmony);
+            allInstalled &= LiVValidatePatch.Install(_harmony);
+            allInstalled &= CloudEnvironmentDetectorPatch.Install(_harmony);
+            allInstalled &= IsolatedRuntimeAdapter.Install(_harmony);
+
+            bool throwOnFailure = options?.ThrowOnPatchFailure ?? true;
+            if (!allInstalled && throwOnFailure)
+            {
+                // Roll back any patches that did install so the bus is not left in a partial
+                // state if a caller catches the exception and tries to keep going.
+                try { _harmony.UnpatchAll(HarmonyId); } catch { /* best effort */ }
+                _harmony = null;
+
+                IReadOnlyList<string> snapshot;
+                lock (_diagnostics)
+                {
+                    snapshot = _diagnostics.ToArray();
+                }
+
+                throw new MassacreInstallException(
+                    "One or more MassTransit Massacre patches failed to install. This usually " +
+                    "means MassTransit moved or renamed a target type or method. Set " +
+                    "MassacreOptions.ThrowOnPatchFailure = false to continue with partial " +
+                    "patching, or upgrade Aeroverra.MassTransitMassacre to a build matching " +
+                    "your MassTransit version. Diagnostics:\n  - " +
+                    string.Join("\n  - ", snapshot),
+                    snapshot);
+            }
 
             IsApplied = true;
         }
